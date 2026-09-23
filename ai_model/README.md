@@ -1,16 +1,5 @@
 # AI model
 
-Module AI của HRC Safety Log.
+Phiên bản HRC Safety Log hiện tại **không sử dụng AI, camera hoặc YOLO**. Thư mục này được giữ lại như một placeholder vì cấu trúc bài nộp ban đầu có yêu cầu `/ai_model`; không đặt mã YOLO hay trọng số vào đây nếu nhóm không triển khai AI.
 
-- `detect.py`: pipeline suy luận YOLO, nhận webcam/video và tạo incident log.
-- `logging_service.py`: chuẩn hoá JSON, SHA-256 và lưu bằng chứng.
-- `verify.py`: xác minh hash của incident log.
-- `weights/`: trọng số mô hình của nhóm; file lớn nên quản lý bằng Git LFS.
-
-Chạy từ thư mục gốc:
-
-```powershell
-python -m ai_model.detect --source 0 --show
-```
-
-Pipeline dùng các adapter vùng an toàn và blockchain trong `iot_code`.
+Phần xử lý thực tế nằm trong `iot_code/firmware/` và `iot_code/gateway.py`: đo khoảng cách, ngưỡng, debounce, cảnh báo và SHA-256.

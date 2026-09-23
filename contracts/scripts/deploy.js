@@ -8,7 +8,7 @@ async function main() {
 
   console.log(`admin=${admin.address}`);
   console.log(`contract=${await contract.getAddress()}`);
-  console.log("Grant GATEWAY_ROLE and SAFETY_OPERATOR_ROLE after deployment.");
+  console.log("Grant GATEWAY_ROLE to the optional warning-log gateway after deployment.");
 }
 
 main().catch((error) => {

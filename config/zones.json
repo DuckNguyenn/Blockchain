@@ -1,9 +1,0 @@
-{
-  "camera_id": "CAM-001",
-  "robot_id": "ROBOT-001",
-  "danger_zone": [[200, 150], [950, 150], [1100, 650], [100, 650]],
-  "warning_zone": [[120, 100], [1030, 100], [1180, 700], [50, 700]],
-  "confidence_threshold": 0.45,
-  "danger_frames": 5,
-  "cooldown_seconds": 5
-}

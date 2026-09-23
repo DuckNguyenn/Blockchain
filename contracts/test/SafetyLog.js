@@ -2,62 +2,67 @@ const { expect } = require("chai");
 
 describe("SafetyLog", function () {
   async function deployed() {
-    const [admin, gateway, operator, stranger] = await ethers.getSigners();
+    const [admin, gateway, stranger] = await ethers.getSigners();
     const Factory = await ethers.getContractFactory("SafetyLog");
     const contract = await Factory.deploy(admin.address);
     await contract.waitForDeployment();
     await contract.grantRole(await contract.GATEWAY_ROLE(), gateway.address);
-    await contract.grantRole(
-      await contract.SAFETY_OPERATOR_ROLE(),
-      operator.address
-    );
-    return { contract, admin, gateway, operator, stranger };
+    return { contract, gateway, stranger };
   }
 
-  it("records an incident only from the gateway", async function () {
+  it("records a distance warning only from the gateway", async function () {
     const { contract, gateway, stranger } = await deployed();
-    const incidentId = ethers.encodeBytes32String("INC-001");
-    const logHash = ethers.keccak256(ethers.toUtf8Bytes("incident"));
-    const cameraId = ethers.encodeBytes32String("CAM-001");
-    const robotId = ethers.encodeBytes32String("ROBOT-001");
-    const subjectId = ethers.encodeBytes32String("TRACK-001");
+    const warningId = ethers.encodeBytes32String("WARN-001");
+    const logHash = ethers.keccak256(ethers.toUtf8Bytes("distance warning"));
+    const deviceId = ethers.encodeBytes32String("ESP32-HRC-01");
+    const sensorId = ethers.encodeBytes32String("HC-SR04");
 
     await expect(
-      contract.connect(stranger).recordIncident(
-        incidentId,
+      contract.connect(stranger).recordWarning(
+        warningId,
         logHash,
-        cameraId,
-        robotId,
-        subjectId,
-        1,
-        2
+        deviceId,
+        sensorId,
+        0
       )
     ).to.be.reverted;
 
     await expect(
-      contract.connect(gateway).recordIncident(
-        incidentId,
+      contract.connect(gateway).recordWarning(
+        warningId,
         logHash,
-        cameraId,
-        robotId,
-        subjectId,
-        1,
-        2
+        deviceId,
+        sensorId,
+        0
       )
-    ).to.emit(contract, "IncidentRecorded");
+    ).to.emit(contract, "WarningRecorded");
 
-    expect(await contract.verifyLogHash(incidentId, logHash)).to.equal(true);
+    expect(await contract.verifyLogHash(warningId, logHash)).to.equal(true);
   });
 
-  it("allows only the safety operator to clear emergency stop", async function () {
-    const { contract, gateway, operator, stranger } = await deployed();
-    const robotId = ethers.encodeBytes32String("ROBOT-001");
-    const incidentId = ethers.encodeBytes32String("INC-001");
+  it("rejects a duplicate warning ID", async function () {
+    const { contract, gateway } = await deployed();
+    const warningId = ethers.encodeBytes32String("WARN-001");
+    const logHash = ethers.keccak256(ethers.toUtf8Bytes("sensor timeout"));
+    const deviceId = ethers.encodeBytes32String("ESP32-HRC-01");
+    const sensorId = ethers.encodeBytes32String("HC-SR04");
 
-    await contract.connect(gateway).recordEmergencyStop(robotId, incidentId);
-    expect(await contract.emergencyStopped(robotId)).to.equal(true);
-    await expect(contract.connect(stranger).clearEmergencyStop(robotId)).to.be.reverted;
-    await contract.connect(operator).clearEmergencyStop(robotId);
-    expect(await contract.emergencyStopped(robotId)).to.equal(false);
+    await contract.connect(gateway).recordWarning(
+      warningId,
+      logHash,
+      deviceId,
+      sensorId,
+      1
+    );
+
+    await expect(
+      contract.connect(gateway).recordWarning(
+        warningId,
+        logHash,
+        deviceId,
+        sensorId,
+        1
+      )
+    ).to.be.revertedWith("Warning already exists");
   });
 });

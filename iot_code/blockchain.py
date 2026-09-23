@@ -8,34 +8,24 @@ from typing import Any
 CONTRACT_ABI = [
     {
         "inputs": [
-            {"internalType": "bytes32", "name": "incidentId", "type": "bytes32"},
+            {"internalType": "bytes32", "name": "warningId", "type": "bytes32"},
             {"internalType": "bytes32", "name": "logHash", "type": "bytes32"},
-            {"internalType": "bytes32", "name": "cameraId", "type": "bytes32"},
-            {"internalType": "bytes32", "name": "robotId", "type": "bytes32"},
-            {"internalType": "bytes32", "name": "subjectId", "type": "bytes32"},
-            {"internalType": "uint8", "name": "severity", "type": "uint8"},
-            {"internalType": "uint8", "name": "action", "type": "uint8"},
+            {"internalType": "bytes32", "name": "deviceId", "type": "bytes32"},
+            {"internalType": "bytes32", "name": "sensorId", "type": "bytes32"},
+            {"internalType": "uint8", "name": "severity", "type": "uint8"}
         ],
-        "name": "recordIncident",
+        "name": "recordWarning",
         "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {"internalType": "bytes32", "name": "robotId", "type": "bytes32"},
-            {"internalType": "bytes32", "name": "incidentId", "type": "bytes32"},
-        ],
-        "name": "recordEmergencyStop",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
+        "type": "function"
+    }
 ]
 
 
 @dataclass
 class BlockchainRecorder:
+    """Optional audit adapter; never part of local sensor measurement."""
+
     web3: Any
     account: str
     private_key: str
@@ -66,7 +56,7 @@ class BlockchainRecorder:
 
         web3 = Web3(Web3.HTTPProvider(rpc_url))
         if not web3.is_connected():
-            raise RuntimeError(f"Cannot connect to Blockchain RPC: {rpc_url}")
+            raise RuntimeError(f"Cannot connect to blockchain RPC: {rpc_url}")
 
         account = web3.eth.account.from_key(private_key).address
         contract = web3.eth.contract(
@@ -75,50 +65,30 @@ class BlockchainRecorder:
         )
         return cls(web3, account, private_key, contract)
 
-    def record(self, event: dict[str, Any]) -> tuple[str, str]:
+    def record(self, warning: dict[str, Any]) -> str:
         Web3 = self.web3
-        incident_id = Web3.keccak(text=event["incident_id"])
-        log_hash = bytes.fromhex(event["log_sha256"])
-        camera_id = Web3.keccak(text=event["camera_id"])
-        robot_id = Web3.keccak(text=event["robot_id"])
-        subject_id = Web3.keccak(text=event.get("track_id") or "UNKNOWN")
+        warning_id = Web3.keccak(text=warning["warning_id"])
+        log_hash = bytes.fromhex(warning["log_sha256"])
+        device_id = Web3.keccak(text=warning["device_id"])
+        sensor_id = Web3.keccak(text=warning.get("sensor_id") or "HC-SR04")
+        severity = 1 if warning.get("state") == "SENSOR_FAULT" else 0
 
-        transaction = self.contract.functions.recordIncident(
-            incident_id,
+        transaction = self.contract.functions.recordWarning(
+            warning_id,
             log_hash,
-            camera_id,
-            robot_id,
-            subject_id,
-            1,
-            2,
+            device_id,
+            sensor_id,
+            severity,
         ).build_transaction(
             {
                 "from": self.account,
                 "nonce": self.web3.eth.get_transaction_count(self.account),
                 "chainId": self.web3.eth.chain_id,
-                "gas": 500_000,
+                "gas": 300_000,
                 "gasPrice": self.web3.eth.gas_price,
             }
         )
         signed = self.web3.eth.account.sign_transaction(transaction, self.private_key)
-        incident_tx = self.web3.eth.send_raw_transaction(signed.raw_transaction)
-        self.web3.eth.wait_for_transaction_receipt(incident_tx)
-
-        stop_transaction = self.contract.functions.recordEmergencyStop(
-            robot_id,
-            incident_id,
-        ).build_transaction(
-            {
-                "from": self.account,
-                "nonce": self.web3.eth.get_transaction_count(self.account),
-                "chainId": self.web3.eth.chain_id,
-                "gas": 200_000,
-                "gasPrice": self.web3.eth.gas_price,
-            }
-        )
-        signed_stop = self.web3.eth.account.sign_transaction(
-            stop_transaction,
-            self.private_key,
-        )
-        stop_tx = self.web3.eth.send_raw_transaction(signed_stop.raw_transaction)
-        return incident_tx.hex(), stop_tx.hex()
+        transaction_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
+        self.web3.eth.wait_for_transaction_receipt(transaction_hash)
+        return transaction_hash.hex()

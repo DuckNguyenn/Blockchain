@@ -1,82 +1,81 @@
 # HRC Safety Log
 
-Prototype hộp đen an toàn cho robot cộng tác: YOLO phát hiện người, kiểm tra điểm chân với polygon vùng nguy hiểm, ghi incident log có SHA-256 và tùy chọn ghi hash lên Smart Contract.
+HRC Safety Log là prototype ghi cảnh báo khoảng cách dùng **ESP32 và cảm biến siêu âm HC-SR04**. ESP32 đo khoảng cách và xuất telemetry JSON qua Serial. Gateway tùy chọn đọc telemetry, ghi cảnh báo có SHA-256 và có thể lưu hash lên Smart Contract.
+
+> Phạm vi hiện tại chỉ là đo khoảng cách và ghi cảnh báo. Dự án **không dùng camera, YOLO, mô hình AI, relay, buzzer hoặc E-Stop**.
+
+## Luồng hoạt động
+
+```text
+HC-SR04 -> ESP32 đo khoảng cách -> SAFE/WARNING/SENSOR_FAULT
+        -> Serial JSON -> gateway tùy chọn
+        -> JSON cảnh báo + SHA-256 -> Smart Contract tùy chọn
+```
+
+Ngưỡng mặc định trong `config/sensor.json`:
+
+- `distance >= 50 cm`: `SAFE`, không tạo cảnh báo.
+- `distance < 50 cm`: `WARNING`, gateway ghi một cảnh báo (có cooldown).
+- Không nhận được echo: `SENSOR_FAULT`, gateway ghi lỗi cảm biến.
 
 ## Cấu trúc repository
 
 ```text
-README.md                  Hướng dẫn cài đặt, cấu hình và chạy demo
-Report_NhomXX.pdf          Báo cáo kỹ thuật chính thức của nhóm (đặt ở root)
-contracts/                 Smart Contract Solidity/Hardhat
-ai_model/                  Mã AI, suy luận/huấn luyện và weights/
-iot_code/                  Firmware, mô phỏng IoT và blockchain gateway
-config/                    Cấu hình dùng chung (zones.json)
-data/incidents/            Incident JSON và evidence tạo khi chạy demo
-docs/                      Tài liệu kỹ thuật; reference/ chứa tài liệu đề bài
+README.md                         Hướng dẫn cài đặt và demo
+Report_NhomXX.pdf                 Báo cáo kỹ thuật chính thức (bổ sung khi có)
+contracts/                        Smart Contract Solidity/Hardhat
+iot_code/firmware/                Firmware ESP32 + HC-SR04
+iot_code/gateway.py               Gateway đọc Serial/stdin và ghi cảnh báo
+iot_code/logging_service.py       Canonical JSON + SHA-256
+iot_code/blockchain.py            Adapter audit tùy chọn
+ai_model/                         Placeholder; không dùng trong phiên bản này
+config/sensor.json                Ngưỡng và sơ đồ chân
+data/incidents/                   Cảnh báo JSON sinh ra khi chạy gateway
+docs/de_tai_2_esp32_sieu_am.md    Tài liệu kỹ thuật phần cứng
+docs/reference/                   Tài liệu hướng dẫn môn học tham khảo
 ```
 
-`final_project_requirements.pdf` là tài liệu hướng dẫn đồ án, không phải báo cáo nhóm; bản tham khảo được lưu tại `docs/reference/`.
+## Phần cứng
 
-## Phạm vi và giới hạn
+- ESP32 DevKit V1 (WROOM-32).
+- HC-SR04.
+- Cầu phân áp 1 kΩ/2 kΩ cho chân `ECHO` 5 V trước khi vào GPIO26.
+- Dây nối, breadboard và nguồn phù hợp.
 
-- YOLO pretrained chỉ phát hiện lớp `person`, không nhận diện danh tính.
-- E-Stop trong prototype là mô phỏng cục bộ; Blockchain không nằm trong vòng điều khiển an toàn.
-- Log đầy đủ lưu off-chain tại `data/incidents/`; blockchain chỉ lưu hash và metadata.
-- Đây là prototype nghiên cứu, không phải bộ điều khiển an toàn được chứng nhận cho robot công nghiệp.
+Pin mặc định: `TRIG=25`, `ECHO=26`. Không đưa tín hiệu ECHO 5 V trực tiếp vào ESP32.
 
-## Cài đặt
+## Nạp firmware
+
+1. Mở `iot_code/firmware/hrc_safety_ultrasonic.ino` bằng Arduino IDE hoặc PlatformIO.
+2. Chọn board ESP32 Dev Module và đúng cổng COM.
+3. Kiểm tra cầu phân áp ECHO.
+4. Upload, mở Serial Monitor ở `115200 baud`.
+5. Đưa vật cản qua mốc 50 cm và quan sát các dòng JSON.
+
+Firmware chỉ đo và gửi dữ liệu; quyết định ghi cảnh báo nằm ở gateway.
+
+## Chạy gateway Python
 
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+
+# Đọc trực tiếp cổng ESP32 (Windows)
+python -m iot_code.gateway --port COM3
+
+# Demo không cần phần cứng
+Get-Content .\docs\sample_telemetry.json | python -m iot_code.gateway --stdin --cooldown-seconds 0
+
+# Xác minh một cảnh báo đã ghi
+python -m iot_code.verify data\incidents\WARN-....json
 ```
 
-Blockchain là tùy chọn. Sao chép `.env.example` thành `.env` và điền `HRC_RPC_URL`, `HRC_GATEWAY_PRIVATE_KEY`, `HRC_CONTRACT_ADDRESS` sau khi deploy; không commit `.env`.
+Gateway bỏ qua dòng khởi động không phải JSON, không ghi mẫu `SAFE`, và rate-limit các cảnh báo lặp theo `--cooldown-seconds`.
 
-## Chạy demo AI/IoT
+## Smart Contract tùy chọn
 
-Chạy từ thư mục gốc repository:
-
-```powershell
-python -m ai_model.detect --source 0 --show
-python -m ai_model.detect --source "data/sample.mp4" --show
-python -m ai_model.detect --source 0 --no-show
-python -m ai_model.detect --source 0 --calibrate
-```
-
-Mặc định model là `yolo11n.pt`. Có thể chỉ định trọng số khác bằng `--model`; đặt trọng số nhóm trong `ai_model/weights/`.
-
-## Cấu hình vùng nguy hiểm
-
-Sửa `config/zones.json` theo độ phân giải camera. Tọa độ polygon là pixel `(x, y)`:
-
-```json
-{
-  "camera_id": "CAM-001",
-  "robot_id": "ROBOT-001",
-  "danger_zone": [[200, 150], [950, 150], [1100, 650], [100, 650]],
-  "warning_zone": [[120, 100], [1030, 100], [1180, 700], [50, 700]],
-  "confidence_threshold": 0.45,
-  "danger_frames": 5,
-  "cooldown_seconds": 5
-}
-```
-
-Trong cửa sổ calibrate, nhấn `d` chọn vùng nguy hiểm, `w` chọn vùng cảnh báo, click ít nhất 3 điểm mỗi polygon, `s` lưu, `r` làm lại, `q` thoát.
-
-## Incident log và xác minh hash
-
-Mỗi sự cố tạo JSON trong `data/incidents/`, có thể kèm ảnh bằng chứng khi thêm `--save-evidence`:
-
-```powershell
-python -m ai_model.detect --source 0 --save-evidence
-python -m ai_model.verify "data/incidents/INC-....json"
-```
-
-## Smart Contract
-
-Hợp đồng MVP ở `contracts/contracts/SafetyLog.sol`; test ở `contracts/test/` và deploy script ở `contracts/scripts/`:
+Contract ở `contracts/contracts/SafetyLog.sol`, test ở `contracts/test/` và deploy script ở `contracts/scripts/`:
 
 ```powershell
 cd contracts
@@ -87,11 +86,15 @@ npx hardhat node
 npx hardhat run scripts/deploy.js --network localhost
 ```
 
-Sau khi deploy, đặt địa chỉ vào `HRC_CONTRACT_ADDRESS`. Khi thiếu một trong ba biến blockchain, pipeline vẫn chạy và chỉ lưu log off-chain.
+Sao chép `.env.example` thành `.env` khi muốn bật audit blockchain. Gateway vẫn ghi log cục bộ nếu RPC/contract chưa cấu hình. Không commit private key.
 
-## Tài liệu
+## Kiểm thử
 
-- [REPOSITORY_STRUCTURE.md](REPOSITORY_STRUCTURE.md): quy ước phân loại module.
-- [ai_model/README.md](ai_model/README.md): module AI và weights.
-- [iot_code/README.md](iot_code/README.md): firmware, simulator và gateway.
-- [contracts/README.md](contracts/README.md): Smart Contract.
+```powershell
+python -m unittest discover -s tests -v
+python -m compileall -q iot_code
+```
+
+## Giới hạn
+
+Đây là prototype nghiên cứu, không phải hệ thống an toàn được chứng nhận. Kiểm tra phần cứng và giới hạn đo của HC-SR04 trước khi dùng trong bất kỳ môi trường thực tế nào.

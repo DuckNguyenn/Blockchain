@@ -1,27 +1,27 @@
 # Cấu trúc repository
 
-```
+```text
 HRC-Safety-Log/
-├── README.md                 # Cài đặt, cấu hình và chạy demo
-├── Report_NhomXX.pdf         # Báo cáo kỹ thuật chính thức (thêm khi hoàn thiện)
-├── contracts/                # Smart contracts Solidity/Hardhat
-├── ai_model/                 # Mã huấn luyện/suy luận AI và trọng số
-├── iot_code/                 # Firmware, mô phỏng IoT và gateway
-├── config/                   # Cấu hình dùng chung, ví dụ zones.json
-├── data/                     # Incident log, evidence, dữ liệu demo (không commit dữ liệu nhạy cảm)
-└── docs/                     # Tài liệu tham khảo và tài liệu kỹ thuật bổ sung
+├── README.md                         # Cài đặt, cấu hình và demo
+├── Report_NhomXX.pdf                 # Báo cáo kỹ thuật nhóm (bổ sung khi có)
+├── contracts/                        # Solidity/Hardhat
+├── iot_code/
+│   ├── firmware/                     # Firmware ESP32 + HC-SR04
+│   ├── gateway.py                    # Đọc telemetry và ghi cảnh báo
+│   ├── logging_service.py            # Canonical JSON và SHA-256
+│   ├── blockchain.py                 # Adapter audit tùy chọn
+│   └── verify.py                     # Xác minh hash
+├── ai_model/                         # Placeholder; không dùng hiện tại
+├── config/sensor.json                # Ngưỡng khoảng cách và pin map
+├── data/incidents/                   # Cảnh báo JSON tạo khi chạy demo
+└── docs/                             # Tài liệu kỹ thuật/tham khảo
 ```
 
-## Phân loại mã hiện hữu
+## Phân loại theo đề tài
 
-| Mã hiện hữu | Vị trí chuẩn |
-| --- | --- |
-| `src/detect.py`, `src/logging_service.py`, `src/verify.py` | `ai_model/` |
-| `src/zone.py`, `src/blockchain.py` | `iot_code/` |
-| `contracts/contracts/SafetyLog.sol` | `contracts/contracts/` |
+- **IoT:** HC-SR04 đo khoảng cách và xuất JSON qua Serial.
+- **Gateway:** lọc trạng thái, ghi cảnh báo và tính SHA-256.
+- **Blockchain:** lưu bằng chứng audit tùy chọn; không tham gia đo khoảng cách.
+- **AI:** không có trong phạm vi hiện tại; không cài YOLO/OpenCV/weights.
 
-Các module cũ trước đây nằm trong `src/` đã được chuyển vào các vị trí chuẩn ở trên; repository không giữ bản implementation trùng lặp trong `src/`.
-
-`final_project_requirements.pdf` là hướng dẫn đồ án, không phải báo cáo chính
-thức; giữ nó dưới `docs/reference/` nếu cần lưu trong repository. Không đổi tên
-nó thành `Report_NhomXX.pdf`.
+`docs/de_tai_2_esp32_sieu_am.md` là tài liệu kỹ thuật phần cứng. PDF trong `docs/reference/` là hướng dẫn môn học, không phải báo cáo nhóm.

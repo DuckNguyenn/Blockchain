@@ -3,105 +3,74 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
+/// @notice Audit log for warnings emitted by one distance sensor node.
+/// @dev This contract records evidence only; it does not control the ESP32.
 contract SafetyLog is AccessControl {
     bytes32 public constant GATEWAY_ROLE = keccak256("GATEWAY_ROLE");
-    bytes32 public constant SAFETY_OPERATOR_ROLE = keccak256("SAFETY_OPERATOR_ROLE");
 
-    enum Severity { WARNING, CRITICAL }
-    enum Action { NONE, WARNING_TRIGGERED, EMERGENCY_STOP }
+    enum Severity { WARNING, SENSOR_FAULT }
 
-    struct Incident {
-        bytes32 incidentId;
+    struct WarningLog {
+        bytes32 warningId;
         bytes32 logHash;
-        bytes32 cameraId;
-        bytes32 robotId;
-        bytes32 subjectId;
+        bytes32 deviceId;
+        bytes32 sensorId;
         Severity severity;
-        Action action;
         uint256 recordedAt;
         address recordedBy;
     }
 
-    mapping(bytes32 => Incident) public incidents;
-    mapping(bytes32 => bool) public emergencyStopped;
+    mapping(bytes32 => WarningLog) public warnings;
 
-    event IncidentRecorded(
-        bytes32 indexed incidentId,
-        bytes32 indexed robotId,
+    event WarningRecorded(
+        bytes32 indexed warningId,
+        bytes32 indexed deviceId,
+        bytes32 indexed sensorId,
         bytes32 logHash,
         Severity severity,
-        Action action,
         uint256 recordedAt,
         address recordedBy
     );
-
-    event EmergencyStopRecorded(
-        bytes32 indexed robotId,
-        bytes32 indexed incidentId,
-        uint256 recordedAt
-    );
-
-    event EmergencyStopCleared(bytes32 indexed robotId, uint256 clearedAt);
 
     constructor(address admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 
-    function recordIncident(
-        bytes32 incidentId,
+    function recordWarning(
+        bytes32 warningId,
         bytes32 logHash,
-        bytes32 cameraId,
-        bytes32 robotId,
-        bytes32 subjectId,
-        Severity severity,
-        Action action
+        bytes32 deviceId,
+        bytes32 sensorId,
+        Severity severity
     ) external onlyRole(GATEWAY_ROLE) {
-        require(incidents[incidentId].recordedAt == 0, "Incident already exists");
+        require(warnings[warningId].recordedAt == 0, "Warning already exists");
 
-        incidents[incidentId] = Incident({
-            incidentId: incidentId,
+        warnings[warningId] = WarningLog({
+            warningId: warningId,
             logHash: logHash,
-            cameraId: cameraId,
-            robotId: robotId,
-            subjectId: subjectId,
+            deviceId: deviceId,
+            sensorId: sensorId,
             severity: severity,
-            action: action,
             recordedAt: block.timestamp,
             recordedBy: msg.sender
         });
 
-        emit IncidentRecorded(
-            incidentId,
-            robotId,
+        emit WarningRecorded(
+            warningId,
+            deviceId,
+            sensorId,
             logHash,
             severity,
-            action,
             block.timestamp,
             msg.sender
         );
     }
 
-    function recordEmergencyStop(bytes32 robotId, bytes32 incidentId)
-        external
-        onlyRole(GATEWAY_ROLE)
-    {
-        emergencyStopped[robotId] = true;
-        emit EmergencyStopRecorded(robotId, incidentId, block.timestamp);
-    }
-
-    function clearEmergencyStop(bytes32 robotId)
-        external
-        onlyRole(SAFETY_OPERATOR_ROLE)
-    {
-        emergencyStopped[robotId] = false;
-        emit EmergencyStopCleared(robotId, block.timestamp);
-    }
-
-    function verifyLogHash(bytes32 incidentId, bytes32 calculatedHash)
+    function verifyLogHash(bytes32 warningId, bytes32 calculatedHash)
         external
         view
         returns (bool)
     {
-        return incidents[incidentId].logHash == calculatedHash;
+        return warnings[warningId].logHash == calculatedHash;
     }
 }

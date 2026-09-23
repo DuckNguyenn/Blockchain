@@ -1,5 +1,4 @@
-ultralytics>=8.3.0
-opencv-python>=4.8.0
-numpy>=1.24.0
+# Python gateway only; the ESP32 firmware uses Arduino core libraries.
+pyserial>=3.5
 python-dotenv>=1.0.0
 web3>=6.0.0

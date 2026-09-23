@@ -1,10 +1,11 @@
 # IoT code
 
-Module IoT/gateway của HRC Safety Log.
+Module chính của HRC Safety Log dùng ESP32 và HC-SR04.
 
-- `zone.py`: polygon vùng cảnh báo/nguy hiểm và logic phân loại.
-- `blockchain.py`: adapter ghi hash incident và E-Stop lên Smart Contract.
-- `firmware/`: mã nạp ESP32/thiết bị IoT.
-- `simulator/`: mã mô phỏng cảm biến hoặc thiết bị chấp hành.
+- `firmware/hrc_safety_ultrasonic.ino`: đo khoảng cách và xuất Serial JSON với trạng thái `SAFE`, `WARNING` hoặc `SENSOR_FAULT`.
+- `gateway.py`: đọc telemetry từ Serial/stdin, bỏ mẫu SAFE, rate-limit và ghi cảnh báo.
+- `logging_service.py`: canonical JSON, SHA-256 và lưu log.
+- `blockchain.py`: adapter ghi hash cảnh báo lên Smart Contract (tùy chọn).
+- `verify.py`: xác minh hash của cảnh báo.
 
-Thông số vùng an toàn dùng chung tại `config/zones.json`.
+Không có camera, YOLO, mô hình AI, relay, buzzer hoặc E-Stop trong luồng hiện tại.
