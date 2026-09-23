@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+data/incidents/*.json
+data/incidents/evidence/*
+ai_model/weights/*
+!ai_model/weights/.gitkeep
+data/sample.*
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+.env
